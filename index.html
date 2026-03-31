@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NewsScope — Entretenimiento Francia</title>
+
+  <!-- Vincula el manifest.json (describe la app al SO) -->
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- Color de la barra de estado en Android/Chrome -->
+  <meta name="theme-color" content="#c8102e" />
+
+  <!-- iOS: permite añadir al inicio como app -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="NewsScope" />
+
+  <!-- iOS: ícono de la app (genera los .png en /icons/) -->
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <!-- SEO y descripción -->
+  <meta name="description" content="Explorador de noticias de entretenimiento en Francia — The News API" />
+
+  <!-- Google Fonts: tipografía editorial -->
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+  <!-- Hoja de estilos externa -->
+  <link rel="stylesheet" href="estilos.css" />
+</head>
+<body>
+
+<div id="banner-actualizacion" style="display:none;
+  position:fixed; bottom:1rem; left:50%; transform:translateX(-50%);
+  background:var(--tinta); color:var(--papel); padding:0.75rem 1.25rem;
+  border-radius:6px; font-family:var(--fuente-mono); font-size:0.75rem;
+  letter-spacing:1px; z-index:9999; display:none; align-items:center; gap:1rem;
+  box-shadow:0 4px 20px rgba(0,0,0,0.4); border-left:3px solid var(--acento);">
+  <span>🔄 Nueva versión disponible</span>
+  <button onclick="aplicarActualizacion()"
+    style="background:var(--acento);color:#fff;border:none;padding:0.35rem 0.75rem;
+    border-radius:3px;cursor:pointer;font-family:var(--fuente-mono);font-size:0.72rem;
+    letter-spacing:1px;">
+    ACTUALIZAR
+  </button>
+  <button onclick="document.getElementById('banner-actualizacion').style.display='none'"
+    style="background:none;color:var(--apagado);border:none;cursor:pointer;font-size:1rem;">
+    ✕
+  </button>
+</div>
+
+<div id="banner-offline" style="display:none;
+  position:fixed; top:0; left:0; right:0;
+  background:#7a1a24; color:#fff; padding:0.5rem 1rem;
+  font-family:var(--fuente-mono); font-size:0.72rem; letter-spacing:1px;
+  text-align:center; z-index:9998;">
+  📡 Sin conexión — mostrando datos en caché
+</div>
+
+<header>
+  <div class="cabecera">
+    <div class="cabecera-izquierda">
+      <!-- Logotipo de la aplicación -->
+      <div class="logotipo">News<span>Scope</span></div>
+      <div class="eslogan">Entretenimiento · Francia · The News API</div>
+    </div>
+    <!-- Insignia del país + indicador de estado PWA -->
+    <div style="display:flex;align-items:center;gap:1rem">
+      <div class="insignia-pais">
+        <span class="bandera">🇫🇷</span>
+        <span>FRANCIA — ENTRETENIMIENTO</span>
+      </div>
+      <!-- Botón instalar app (solo visible si el navegador lo permite) -->
+      <button id="boton-instalar" style="display:none;
+        background:var(--acento);color:#fff;border:none;padding:0.4rem 0.75rem;
+        border-radius:3px;font-family:var(--fuente-mono);font-size:0.65rem;
+        letter-spacing:1px;cursor:pointer;text-transform:uppercase;"
+        onclick="instalarApp()">
+        ⬇ Instalar App
+      </button>
+    </div>
+  </div>
+
+  <!-- Menú de navegación: un botón por cada endpoint -->
+  <nav>
+    <button class="boton-nav activo" onclick="mostrarSeccion('top', this)">
+      Titulares Principales <span class="etiqueta-ep">EP1</span>
+    </button>
+    <button class="boton-nav" onclick="mostrarSeccion('todos', this)">
+      Todos los Artículos <span class="etiqueta-ep">EP2</span>
+    </button>
+    <button class="boton-nav" onclick="mostrarSeccion('buscar', this)">
+      Buscar Noticias <span class="etiqueta-ep">EP3</span>
+    </button>
+    <button class="boton-nav" onclick="mostrarSeccion('similares', this)">
+      Artículos Similares <span class="etiqueta-ep">EP4</span>
+    </button>
+    <button class="boton-nav" onclick="mostrarSeccion('fuentes', this)">
+      Fuentes de Noticias <span class="etiqueta-ep">EP5</span>
+    </button>
+    <button class="boton-nav" onclick="mostrarSeccion('uuid', this)">
+      Buscar por UUID <span class="etiqueta-ep">EP6</span>
+    </button>
+  </nav>
+</header>
+
+<div class="cuerpo-app">
+
+  <aside class="panel-lateral">
+
+    <!-- Token de API -->
+    <div class="seccion-panel">
+      <div class="etiqueta-panel">Token de API</div>
+      <div class="grupo-campo">
+        <label for="tokenApi">Tu Token de The News API</label>
+        <input type="password" id="tokenApi" class="campo-control"
+               placeholder="Pega tu token aquí" />
+      </div>
+      <div class="nota-api">
+        Obtén tu clave gratuita en
+        <a href="https://www.thenewsapi.com/" target="_blank">thenewsapi.com</a>.
+        Tu token nunca sale del navegador.
+        <!-- PWA: el token se guarda en localStorage para no tener que re-ingresarlo -->
+        <br><small style="opacity:0.7;margin-top:0.3rem;display:block">
+          💾 Tu token se recuerda automáticamente al instalar la app.
+        </small>
+      </div>
+    </div>
+
+    <!-- ── Controles EP1: Titulares Principales ── -->
+    <div class="seccion-panel" id="ctrl-top">
+      <div class="etiqueta-panel">Titulares Principales</div>
+      <div class="grupo-campo">
+        <label for="top-idioma">Idioma</label>
+        <select id="top-idioma" class="campo-control">
+          <option value="fr">Francés (fr)</option>
+          <option value="en">Inglés (en)</option>
+        </select>
+      </div>
+      <div class="grupo-campo">
+        <label for="top-categoria">Categoría</label>
+        <select id="top-categoria" class="campo-control">
+          <option value="entertainment">Entretenimiento</option>
+          <option value="politics">Política</option>
+          <option value="sports">Deportes</option>
+          <option value="tech">Tecnología</option>
+          <option value="business">Negocios</option>
+        </select>
+      </div>
+      <div class="grupo-campo">
+        <label for="top-limite">Resultados por página</label>
+        <select id="top-limite" class="campo-control">
+          <option value="6">6</option>
+          <option value="9" selected>9</option>
+          <option value="12">12</option>
+        </select>
+      </div>
+      <button class="boton-buscar" onclick="obtenerTitulares()">▶ Obtener Titulares</button>
+    </div>
+
+    <!-- ── Controles EP2: Todos los Artículos ── -->
+    <div class="seccion-panel oculto" id="ctrl-todos">
+      <div class="etiqueta-panel">Todos los Artículos</div>
+      <div class="grupo-campo">
+        <label for="todos-desde">Desde (AAAA-MM-DD)</label>
+        <input type="date" id="todos-desde" class="campo-control" />
+      </div>
+      <div class="grupo-campo">
+        <label for="todos-hasta">Hasta (AAAA-MM-DD)</label>
+        <input type="date" id="todos-hasta" class="campo-control" />
+      </div>
+      <div class="grupo-campo">
+        <label for="todos-orden">Ordenar por</label>
+        <select id="todos-orden" class="campo-control">
+          <option value="published_at">Más recientes primero</option>
+          <option value="relevance_score">Relevancia</option>
+        </select>
+      </div>
+      <div class="grupo-campo">
+        <label for="todos-limite">Límite de resultados</label>
+        <select id="todos-limite" class="campo-control">
+          <option value="6">6</option>
+          <option value="9" selected>9</option>
+        </select>
+      </div>
+      <button class="boton-buscar" onclick="obtenerTodosArticulos()">▶ Obtener Artículos</button>
+    </div>
+
+    <!-- ── Controles EP3: Búsqueda por Palabra Clave ── -->
+    <div class="seccion-panel oculto" id="ctrl-buscar">
+      <div class="etiqueta-panel">Buscar Noticias</div>
+      <div class="grupo-campo">
+        <label for="buscar-termino">Palabra(s) clave</label>
+        <input type="text" id="buscar-termino" class="campo-control"
+               placeholder="Ej: cinéma, musique, festival…" />
+      </div>
+      <div class="grupo-campo">
+        <label for="buscar-idioma">Idioma</label>
+        <select id="buscar-idioma" class="campo-control">
+          <option value="fr">Francés (fr)</option>
+          <option value="en">Inglés (en)</option>
+          <option value="">Cualquiera</option>
+        </select>
+      </div>
+      <div class="grupo-campo">
+        <label for="buscar-desde">Desde fecha</label>
+        <input type="date" id="buscar-desde" class="campo-control" />
+      </div>
+      <div class="grupo-campo">
+        <label for="buscar-limite">Límite de resultados</label>
+        <select id="buscar-limite" class="campo-control">
+          <option value="6">6</option>
+          <option value="9" selected>9</option>
+          <option value="12">12</option>
+        </select>
+      </div>
+      <button class="boton-buscar" onclick="buscarNoticias()">▶ Buscar Noticias</button>
+    </div>
+
+    <!-- ── Controles EP4: Artículos Similares ── -->
+    <div class="seccion-panel oculto" id="ctrl-similares">
+      <div class="etiqueta-panel">Artículos Similares</div>
+      <div class="grupo-campo">
+        <label for="sim-uuid">UUID del artículo</label>
+        <input type="text" id="sim-uuid" class="campo-control"
+               placeholder="Pega el UUID del artículo…" />
+      </div>
+      <div class="grupo-campo">
+        <label for="sim-limite">Límite de resultados</label>
+        <select id="sim-limite" class="campo-control">
+          <option value="5">5</option>
+          <option value="8" selected>8</option>
+        </select>
+      </div>
+      <button class="boton-buscar" onclick="obtenerSimilares()">▶ Buscar Similares</button>
+      <p class="nota-api mt-1">
+        Consejo: ejecuta primero Titulares y copia el UUID de cualquier tarjeta con el botón 📋.
+      </p>
+    </div>
+
+    <!-- ── Controles EP5: Fuentes de Noticias ── -->
+    <div class="seccion-panel oculto" id="ctrl-fuentes">
+      <div class="etiqueta-panel">Fuentes de Noticias</div>
+      <div class="grupo-campo">
+        <label for="src-pais">País</label>
+        <select id="src-pais" class="campo-control">
+          <option value="fr" selected>Francia (fr)</option>
+          <option value="de">Alemania (de)</option>
+          <option value="es">España (es)</option>
+          <option value="it">Italia (it)</option>
+          <option value="gb">Reino Unido (gb)</option>
+        </select>
+      </div>
+      <div class="grupo-campo">
+        <label for="src-idioma">Idioma</label>
+        <select id="src-idioma" class="campo-control">
+          <option value="fr">Francés</option>
+          <option value="en">Inglés</option>
+          <option value="">Cualquiera</option>
+        </select>
+      </div>
+      <button class="boton-buscar" onclick="obtenerFuentes()">▶ Ver Fuentes</button>
+    </div>
+
+    <!-- ── Controles EP6: Artículo por UUID ── -->
+    <div class="seccion-panel oculto" id="ctrl-uuid">
+      <div class="etiqueta-panel">Buscar por UUID</div>
+      <div class="grupo-campo">
+        <label for="uuid-valor">UUID del artículo</label>
+        <input type="text" id="uuid-valor" class="campo-control"
+               placeholder="Ingresa el UUID del artículo…" />
+      </div>
+      <button class="boton-buscar" onclick="obtenerPorUuid()">▶ Ver Artículo</button>
+      <p class="nota-api mt-1">
+        Recupera los metadatos completos de un artículo usando su identificador único.
+      </p>
+    </div>
+
+    <!-- ── Panel PWA: Estado e Info ── -->
+    <div class="seccion-panel" id="ctrl-pwa-info" style="margin-top:auto;padding-top:1rem">
+      <div class="etiqueta-panel">Estado PWA</div>
+      <div id="estado-pwa" style="font-family:var(--fuente-mono);font-size:0.65rem;
+        color:var(--apagado);line-height:1.8">
+        <!-- Rellenado por JavaScript -->
+        Cargando…
+      </div>
+      <!-- Botón para limpiar caché de la API manualmente -->
+      <button onclick="limpiarCacheApi()" style="margin-top:0.75rem;width:100%;
+        padding:0.45rem;background:transparent;border:1px solid var(--borde);
+        border-radius:4px;font-family:var(--fuente-mono);font-size:0.65rem;
+        letter-spacing:1px;color:var(--apagado);cursor:pointer;
+        text-transform:uppercase;transition:all 0.2s"
+        onmouseover="this.style.borderColor='var(--acento)';this.style.color='var(--acento)'"
+        onmouseout="this.style.borderColor='var(--borde)';this.style.color='var(--apagado)'">
+        🗑 Limpiar Caché API
+      </button>
+    </div>
+
+  </aside><!-- fin panel-lateral -->
+
+  <main class="contenido-principal">
+
+    <!-- ── Sección EP1: Titulares Principales ── -->
+    <section id="sec-top">
+      <div class="encabezado-seccion">
+        <h2 class="titulo-seccion">Titulares <em>Principales</em></h2>
+        <span class="meta-resultado" id="meta-top"></span>
+      </div>
+      <div id="contenido-top">
+        <div class="caja-estado">
+          <div class="icono-estado">📰</div>
+          <div class="titulo-estado">Titulares de Entretenimiento en Francia</div>
+          <div class="subtitulo-estado">
+            Ingresa tu token de API y presiona <strong>Obtener Titulares</strong>
+            para cargar las últimas noticias de Francia.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Sección EP2: Todos los Artículos ── -->
+    <section id="sec-todos" class="oculto">
+      <div class="encabezado-seccion">
+        <h2 class="titulo-seccion">Todos los <em>Artículos</em></h2>
+        <span class="meta-resultado" id="meta-todos"></span>
+      </div>
+      <div id="contenido-todos">
+        <div class="caja-estado">
+          <div class="icono-estado">📋</div>
+          <div class="titulo-estado">Explorar Todos los Artículos</div>
+          <div class="subtitulo-estado">
+            Filtra por rango de fechas y criterio de ordenamiento,
+            luego presiona <strong>Obtener Artículos</strong>.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Sección EP3: Búsqueda ── -->
+    <section id="sec-buscar" class="oculto">
+      <div class="encabezado-seccion">
+        <h2 class="titulo-seccion">Buscar <em>Noticias</em></h2>
+        <span class="meta-resultado" id="meta-buscar"></span>
+      </div>
+      <div id="contenido-buscar">
+        <div class="caja-estado">
+          <div class="icono-estado">🔍</div>
+          <div class="titulo-estado">Búsqueda por Palabra Clave</div>
+          <div class="subtitulo-estado">
+            Escribe uno o más términos (ej. <em>cinéma</em>, <em>festival</em>)
+            y presiona <strong>Buscar Noticias</strong>.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Sección EP4: Artículos Similares ── -->
+    <section id="sec-similares" class="oculto">
+      <div class="encabezado-seccion">
+        <h2 class="titulo-seccion">Artículos <em>Similares</em></h2>
+        <span class="meta-resultado" id="meta-similares"></span>
+      </div>
+      <div id="contenido-similares">
+        <div class="caja-estado">
+          <div class="icono-estado">🔗</div>
+          <div class="titulo-estado">Encontrar Artículos Relacionados</div>
+          <div class="subtitulo-estado">
+            Pega el UUID de un artículo y presiona <strong>Buscar Similares</strong>
+            para descubrir noticias relacionadas.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Sección EP5: Fuentes de Noticias ── -->
+    <section id="sec-fuentes" class="oculto">
+      <div class="encabezado-seccion">
+        <h2 class="titulo-seccion">Fuentes de <em>Noticias</em></h2>
+        <span class="meta-resultado" id="meta-fuentes"></span>
+      </div>
+      <div id="contenido-fuentes">
+        <div class="caja-estado">
+          <div class="icono-estado">🗞️</div>
+          <div class="titulo-estado">Directorio de Medios</div>
+          <div class="subtitulo-estado">
+            Selecciona un país y presiona <strong>Ver Fuentes</strong>
+            para ver los medios de comunicación registrados.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Sección EP6: Artículo por UUID ── -->
+    <section id="sec-uuid" class="oculto">
+      <div class="encabezado-seccion">
+        <h2 class="titulo-seccion">Detalle del <em>Artículo</em></h2>
+        <span class="meta-resultado" id="meta-uuid"></span>
+      </div>
+      <div id="contenido-uuid">
+        <div class="caja-estado">
+          <div class="icono-estado">📄</div>
+          <div class="titulo-estado">Búsqueda por UUID</div>
+          <div class="subtitulo-estado">
+            Ingresa el UUID de cualquier artículo para ver sus metadatos completos.
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main><!-- fin contenido-principal -->
+</div><!-- fin cuerpo-app -->
+
+
+<!-- Script externo cargado al final del body -->
+<script src="script.js"></script>
+
+<footer class="footer-global">
+  <div class="footer-contenido">
+
+    <div class="footer-marca">
+      <div class="footer-logotipo">News<span>Scope</span></div>
+      <div class="footer-eslogan">Explorador de noticias de entretenimiento · Francia 🇫🇷</div>
+    </div>
+
+    <div class="footer-centro">
+      <div class="footer-credito-linea">
+        <span class="footer-etiqueta">Desarrollado por</span>
+        <span class="footer-nombre">Eddy Daniel Marín</span>
+      </div>
+      <div class="footer-credito-linea">
+        <span class="footer-etiqueta">Datos provistos por</span>
+        <a href="https://www.thenewsapi.com/" target="_blank" rel="noopener" class="footer-api-link">
+          thenewsapi.com
+        </a>
+      </div>
+    </div>
+
+    <div class="footer-derecha">
+      <div class="footer-anio">© <span id="footer-year"></span></div>
+      <div class="footer-aviso">Todos los derechos reservados</div>
+    </div>
+
+  </div>
+</footer>
+
+<script>
+  document.getElementById('footer-year').textContent = new Date().getFullYear();
+</script>
+
+</body>
+</html>
